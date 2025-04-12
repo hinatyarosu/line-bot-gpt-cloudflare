@@ -40,7 +40,7 @@ export async function onRequestPost(context) {
   const userMessage = event.message.text;
   const replyToken = event.replyToken;
 
-  // GPTへ問い合わせ
+  // GPTへ問い合わせ（デバッグモード：レスポンス内容をそのまま返す）
   const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -61,26 +61,6 @@ export async function onRequestPost(context) {
     }),
   });
 
-  const gptData = await gptRes.json();
-  const replyText = gptData.choices?.[0]?.message?.content ?? "……応答が次元の狭間に吸い込まれた……";
-
-  // LINEへ返信
-  const lineRes = await fetch("https://api.line.me/v2/bot/message/reply", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${env.LINE_CHANNEL_ACCESS_TOKEN}`,
-    },
-    body: JSON.stringify({
-      replyToken,
-      messages: [{ type: "text", text: replyText }],
-    }),
-  });
-
-  if (!lineRes.ok) {
-    const err = await lineRes.text();
-    return new Response(`LINE API Error: ${err}`, { status: 500 });
-  }
-
-  return new Response("OK", { status: 200 });
+  const gptText = await gptRes.text();
+  return new Response(gptText, { status: 200 });
 }
