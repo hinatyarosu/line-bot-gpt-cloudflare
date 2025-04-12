@@ -90,4 +90,3 @@ export async function onRequestPost(context) {
 
   return new Response("OK", { status: 200 });
 }
-console.log(\"SECRET =\", env.LINE_CHANNEL_SECRET);
