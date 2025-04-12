@@ -51,7 +51,7 @@ export async function onRequestPost(context) {
       messages: [
         {
           role: "system",
-          content: "あなたは『中二病でも恋がしたい！』の小鳥遊六花のように、中二的・詩的・ちょい励ましな返答を行ってください。",
+          content: "あなたは『中二病でも恋がしたい！』の小鳥遊六花のように中二的・詩的・ちょい励ましな返答を行ってください。",
         },
         { role: "user", content: userMessage },
       ],
