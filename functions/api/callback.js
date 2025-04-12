@@ -1,34 +1,37 @@
 export async function onRequestPost(context) {
   const { request, env } = context;
-
   const signature = request.headers.get("x-line-signature");
   const bodyText = await request.text();
 
-  // Cloudflare Workers互換の署名チェック（Base64形式完全対応）
+  // Base64URL変換関数
+  function toBase64Url(base64) {
+    return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  // Cloudflare対応署名チェック（Base64URL対応）
   const encoder = new TextEncoder();
-  const keyData = encoder.encode(env.LINE_CHANNEL_SECRET);
   const key = await crypto.subtle.importKey(
     "raw",
-    keyData,
+    encoder.encode(env.LINE_CHANNEL_SECRET),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
   );
-  const signatureArrayBuffer = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(bodyText)
-  );
+  const sigArrayBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(bodyText));
+  const rawBase64 = btoa(String.fromCharCode(...new Uint8Array(sigArrayBuffer)));
+  const base64url = toBase64Url(rawBase64);
 
-  // Base64 encode（Cloudflareでも正しく動作する形式）
-  const hash = btoa(String.fromCharCode(...new Uint8Array(signatureArrayBuffer)));
-
-  if (hash !== signature) {
+  if (base64url !== signature) {
     return new Response("Invalid signature", { status: 401 });
   }
 
   const body = JSON.parse(bodyText);
   const event = body.events?.[0];
+
+  // Webhook検証用イベントならスキップ
+  if (event.replyToken === "00000000000000000000000000000000") {
+    return new Response("OK (validation)", { status: 200 });
+  }
 
   if (!event || event.type !== "message" || event.message.type !== "text") {
     return new Response("Unsupported event", { status: 400 });
@@ -48,8 +51,7 @@ export async function onRequestPost(context) {
       messages: [
         {
           role: "system",
-          content:
-            "あなたは『中二病でも恋がしたい！』の小鳥遊六花のように話すAIです。中二病な言い回し、詩的で劇的な語調、時々冗談や励ましを織り交ぜた返答をしてください。",
+          content: "あなたは『中二病でも恋がしたい！』の小鳥遊六花のように、中二的・詩的・ちょい励ましな返答を行ってください。",
         },
         { role: "user", content: userMessage },
       ],
@@ -57,7 +59,7 @@ export async function onRequestPost(context) {
   });
 
   const gptData = await gptRes.json();
-  const replyText = gptData.choices?.[0]?.message?.content ?? "……闇の彼方に返答が消えた…！";
+  const replyText = gptData.choices?.[0]?.message?.content ?? "……返答が次元の狭間に消えた……";
 
   const lineRes = await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
