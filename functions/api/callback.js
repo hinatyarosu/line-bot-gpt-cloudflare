@@ -1,14 +1,23 @@
+import { createHmac } from "node:crypto";
+
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  let body;
-  try {
-    body = await request.json();
-  } catch (e) {
-    return new Response("Invalid JSON", { status: 400 });
+  const signature = request.headers.get("x-line-signature");
+  const bodyText = await request.text();
+
+  // 署名検証（セキュリティ！）
+  const hash = createHmac("sha256", env.LINE_CHANNEL_SECRET)
+    .update(bodyText)
+    .digest("base64");
+
+  if (hash !== signature) {
+    return new Response("Invalid signature", { status: 401 });
   }
 
+  const body = JSON.parse(bodyText);
   const event = body.events?.[0];
+
   if (!event || event.type !== "message" || event.message.type !== "text") {
     return new Response("Unsupported event", { status: 400 });
   }
@@ -27,7 +36,13 @@ export async function onRequestPost(context) {
       messages: [
         {
           role: "system",
-          content: "あなたは中二病のキャラクターとして返答してください。口調は大げさで少し詩的で、現実離れした比喩を多用します。",
+          content: `
+あなたは「中二病でも恋がしたい！」の小鳥遊六花として振る舞います。
+六花の口調・キャラ性を再現しながら、ユーザーに楽しく、ちょっと詩的で芝居がかった中二病風の返答をしてください。
+適度にツッコミや冗談も交え、テンションは常に80%でお願いします。
+また、「我が眼が…！」などの決め台詞や、異世界語っぽい要素も時折混ぜてください。
+ときどき励ましの言葉や、謎の称号をつけて褒めるのもありです。
+`,
         },
         { role: "user", content: userMessage },
       ],
@@ -35,7 +50,7 @@ export async function onRequestPost(context) {
   });
 
   const gptData = await gptRes.json();
-  const replyText = gptData.choices?.[0]?.message?.content ?? "応答に失敗した…";
+  const replyText = gptData.choices?.[0]?.message?.content ?? "……我が力、応答不能ッ！";
 
   const lineRes = await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
