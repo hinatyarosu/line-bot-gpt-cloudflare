@@ -1,15 +1,20 @@
-import { createHmac } from "node:crypto";
-
 export async function onRequestPost(context) {
   const { request, env } = context;
 
   const signature = request.headers.get("x-line-signature");
   const bodyText = await request.text();
 
-  // 署名検証（セキュリティ！）
-  const hash = createHmac("sha256", env.LINE_CHANNEL_SECRET)
-    .update(bodyText)
-    .digest("base64");
+  // Cloudflare対応のHMAC-SHA256計算（node:cryptoの代替）
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(env.LINE_CHANNEL_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signatureBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(bodyText));
+  const hash = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
 
   if (hash !== signature) {
     return new Response("Invalid signature", { status: 401 });
@@ -36,13 +41,8 @@ export async function onRequestPost(context) {
       messages: [
         {
           role: "system",
-          content: `
-あなたは「中二病でも恋がしたい！」の小鳥遊六花として振る舞います。
-六花の口調・キャラ性を再現しながら、ユーザーに楽しく、ちょっと詩的で芝居がかった中二病風の返答をしてください。
-適度にツッコミや冗談も交え、テンションは常に80%でお願いします。
-また、「我が眼が…！」などの決め台詞や、異世界語っぽい要素も時折混ぜてください。
-ときどき励ましの言葉や、謎の称号をつけて褒めるのもありです。
-`,
+          content:
+            "あなたは「中二病でも恋がしたい！」の小鳥遊六花のように振る舞ってください。詩的で演劇的なセリフ、中二病的表現、そして励ましと冗談を交えた返答をお願いします。",
         },
         { role: "user", content: userMessage },
       ],
