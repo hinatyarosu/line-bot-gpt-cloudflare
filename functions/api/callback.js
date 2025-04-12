@@ -4,7 +4,6 @@ export async function onRequestPost(context) {
   const signature = request.headers.get("x-line-signature");
   const bodyText = await request.text();
 
-  // HMAC署名の生成
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -20,7 +19,6 @@ export async function onRequestPost(context) {
   );
   const rawBase64 = btoa(String.fromCharCode(...new Uint8Array(sigArrayBuffer)));
 
-  // 署名の検証
   if (rawBase64 !== signature) {
     return new Response("Invalid signature", { status: 401 });
   }
@@ -28,7 +26,6 @@ export async function onRequestPost(context) {
   const body = JSON.parse(bodyText);
   const event = body.events?.[0];
 
-  // Webhook検証用イベントならスキップ
   if (event?.replyToken === "00000000000000000000000000000000") {
     return new Response("OK (validation)", { status: 200 });
   }
@@ -40,7 +37,6 @@ export async function onRequestPost(context) {
   const userMessage = event.message.text;
   const replyToken = event.replyToken;
 
-  // GPTへ問い合わせ（デバッグモード：ステータスと内容を返す）
   const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -61,6 +57,25 @@ export async function onRequestPost(context) {
     }),
   });
 
-  const gptText = await gptRes.text();
-  return new Response(`Status: ${gptRes.status}\n\n${gptText}`, { status: 200 });
+  const gptData = await gptRes.json();
+  const replyText = gptData.choices?.[0]?.message?.content ?? "……応答が次元の狭間に吸い込まれた……";
+
+  const lineRes = await fetch("https://api.line.me/v2/bot/message/reply", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.LINE_CHANNEL_ACCESS_TOKEN}`,
+    },
+    body: JSON.stringify({
+      replyToken,
+      messages: [{ type: "text", text: replyText }],
+    }),
+  });
+
+  if (!lineRes.ok) {
+    const err = await lineRes.text();
+    return new Response(`LINE API Error: ${err}`, { status: 500 });
+  }
+
+  return new Response("OK", { status: 200 });
 }
