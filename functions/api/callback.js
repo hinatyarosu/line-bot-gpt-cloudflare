@@ -40,7 +40,7 @@ export async function onRequestPost(context) {
   const userMessage = event.message.text;
   const replyToken = event.replyToken;
 
-  // GPTへ問い合わせ（デバッグモード：レスポンス内容をそのまま返す）
+  // GPTへ問い合わせ（デバッグモード：ステータスと内容を返す）
   const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -62,5 +62,5 @@ export async function onRequestPost(context) {
   });
 
   const gptText = await gptRes.text();
-  return new Response(gptText, { status: 200 });
+  return new Response(`Status: ${gptRes.status}\n\n${gptText}`, { status: 200 });
 }
