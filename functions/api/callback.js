@@ -72,7 +72,7 @@ export async function onRequestPost(context) {
   const gptData = await gptRes.json();
   const replyText = gptData.choices?.[0]?.message?.content ?? "……返答が異次元に飲まれたッ！";
 
-  // LINEへ返信
+  // LINEへ返信だ
   const lineRes = await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
     headers: {
