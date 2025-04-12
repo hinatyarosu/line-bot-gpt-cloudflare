@@ -4,17 +4,24 @@ export async function onRequestPost(context) {
   const signature = request.headers.get("x-line-signature");
   const bodyText = await request.text();
 
-  // Cloudflare対応のHMAC-SHA256計算（node:cryptoの代替）
+  // Cloudflare Workers互換の署名チェック（Base64形式完全対応）
   const encoder = new TextEncoder();
+  const keyData = encoder.encode(env.LINE_CHANNEL_SECRET);
   const key = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(env.LINE_CHANNEL_SECRET),
+    keyData,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
   );
-  const signatureBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(bodyText));
-  const hash = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
+  const signatureArrayBuffer = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(bodyText)
+  );
+
+  // Base64 encode（Cloudflareでも正しく動作する形式）
+  const hash = btoa(String.fromCharCode(...new Uint8Array(signatureArrayBuffer)));
 
   if (hash !== signature) {
     return new Response("Invalid signature", { status: 401 });
@@ -42,7 +49,7 @@ export async function onRequestPost(context) {
         {
           role: "system",
           content:
-            "あなたは「中二病でも恋がしたい！」の小鳥遊六花のように振る舞ってください。詩的で演劇的なセリフ、中二病的表現、そして励ましと冗談を交えた返答をお願いします。",
+            "あなたは『中二病でも恋がしたい！』の小鳥遊六花のように話すAIです。中二病な言い回し、詩的で劇的な語調、時々冗談や励ましを織り交ぜた返答をしてください。",
         },
         { role: "user", content: userMessage },
       ],
@@ -50,7 +57,7 @@ export async function onRequestPost(context) {
   });
 
   const gptData = await gptRes.json();
-  const replyText = gptData.choices?.[0]?.message?.content ?? "……我が力、応答不能ッ！";
+  const replyText = gptData.choices?.[0]?.message?.content ?? "……闇の彼方に返答が消えた…！";
 
   const lineRes = await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
