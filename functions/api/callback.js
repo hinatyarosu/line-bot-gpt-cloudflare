@@ -4,11 +4,6 @@ export async function onRequestPost(context) {
   const signature = request.headers.get("x-line-signature");
   const bodyText = await request.text();
 
-  // Base64をBase64URLに変換する関数
-  function toBase64Url(base64) {
-    return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  }
-
   // HMAC署名の生成
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -24,10 +19,9 @@ export async function onRequestPost(context) {
     encoder.encode(bodyText)
   );
   const rawBase64 = btoa(String.fromCharCode(...new Uint8Array(sigArrayBuffer)));
-  const base64url = toBase64Url(rawBase64);
 
   // 署名の検証
-  if (base64url !== signature) {
+  if (rawBase64 !== signature) {
     return new Response("Invalid signature", { status: 401 });
   }
 
