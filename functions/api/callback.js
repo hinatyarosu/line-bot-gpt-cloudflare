@@ -1,13 +1,20 @@
 export async function onRequestPost(context) {
   const { request, env } = context;
-  const body = await request.json();
 
-  const userMessage = body.events?.[0]?.message?.text;
-  const replyToken = body.events?.[0]?.replyToken;
-
-  if (!userMessage || !replyToken) {
-    return new Response("No valid message or replyToken", { status: 400 });
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return new Response("Invalid JSON", { status: 400 });
   }
+
+  const event = body.events?.[0];
+  if (!event || event.type !== "message" || event.message.type !== "text") {
+    return new Response("No valid message event", { status: 400 });
+  }
+
+  const userMessage = event.message.text;
+  const replyToken = event.replyToken;
 
   const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -18,14 +25,14 @@ export async function onRequestPost(context) {
     body: JSON.stringify({
       model: "gpt-4o",
       messages: [
-        { role: "system", content: "あなたは中二病のキャラとして振る舞ってください。" },
+        { role: "system", content: "あなたは中二病っぽく返答してください。" },
         { role: "user", content: userMessage },
       ],
     }),
   });
 
   const openaiData = await openaiRes.json();
-  const replyText = openaiData.choices?.[0]?.message?.content || "応答できませんでした…！";
+  const replyText = openaiData.choices?.[0]?.message?.content || "返答に失敗した…！";
 
   await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
